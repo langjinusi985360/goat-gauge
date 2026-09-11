@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local runtime data (never commit credentials or usage history)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+.chrome-profile/
+.chrome-live-profile/
+chrome-profile/
+data/
+credential.bin
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

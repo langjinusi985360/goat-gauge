@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>GOAT Gauge</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/logo.svg" alt="">
+      <div class="brand-copy">
+        <strong>GOAT Gauge</strong>
+        <span>Command Code 用量面板</span>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="live-chip" id="live-chip">
+        <span class="live-dot"></span>
+        <span id="live-label">连接中</span>
+      </div>
+      <button class="icon-button" id="refresh-button" type="button" aria-label="立即刷新" title="立即刷新">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+          <path d="M21 3v5h-5"/>
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+          <path d="M8 16H3v5"/>
+        </svg>
+      </button>
+      <button class="icon-button" id="theme-button" type="button" aria-label="切换主题" title="切换主题">
+        <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+        </svg>
+        <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/>
+        </svg>
+      </button>
+      <button class="icon-button" id="settings-button" type="button" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.1-1.51 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.1.38.32.72.6 1 .3.27.7.4 1.1.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="onboarding" id="onboarding" hidden>
+    <section class="onboarding-copy">
+      <div class="eyebrow">
+        <span class="status-dot"></span>
+        LOCAL-FIRST USAGE MONITOR
+      </div>
+      <h1>把 Command Code GOAT 的额度放在眼前。</h1>
+      <p>
+        连接 Command Code 账户后，5 小时、周和月额度会持续刷新。
+        快照仅保存在本机，API Key 在 Windows 上使用 DPAPI 加密。
+      </p>
+      <div class="feature-row">
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"/><path d="M12 6v6l4 2"/></svg>
+          <span>实时倒计时</span>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>本机存储</span>
+        </div>
+        <div>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></svg>
+          <span>用量趋势</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="connect-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="section-kicker">连接账户</span>
+          <h2>使用 Chrome 登录</h2>
+        </div>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="7.5" cy="15.5" r="4.5"/>
+          <path d="m11 12 8-8"/><path d="m15 8 3 3"/><path d="m18 5 2 2"/>
+        </svg>
+      </div>
+      <p class="form-note connect-intro">
+        推荐直接登录 Command Code，无需复制 API Key。也可以使用下面的 API Key 方式连接。
+      </p>
+      <label class="field-label" for="api-key">API Key（可选）</label>
+      <div class="key-field">
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="cc-...">
+        <button class="text-button" id="toggle-key" type="button">显示</button>
+      </div>
+      <label class="check-row">
+        <input id="remember-key" type="checkbox" checked>
+        <span>在这台电脑上记住并加密保存</span>
+      </label>
+      <div class="form-actions">
+        <button class="button primary" id="chrome-login-button" type="button">打开 Chrome 登录</button>
+        <button class="button secondary" id="connect-button" type="button">验证并连接</button>
+        <button class="button secondary" id="detect-button" type="button">检测登录态</button>
+      </div>
+      <p class="form-note" id="connect-note">
+        Chrome 登录态仅在本机内存中使用；API Key 只发送到 commandcode.ai 官方接口。
+      </p>
+    </section>
+  </main>
+
+  <main class="dashboard" id="dashboard" hidden>
+    <div class="alert-stack" id="alert-stack" hidden></div>
+
+    <section class="page-heading">
+      <div>
+        <span class="section-kicker">配额总览</span>
+        <div class="heading-line">
+          <h1 id="account-title">Command Code</h1>
+          <span class="plan-badge" id="plan-badge">GOAT</span>
+          <span class="demo-badge" id="demo-badge" hidden>DEMO</span>
+        </div>
+        <p id="account-subtitle">正在读取账户信息...</p>
+      </div>
+      <div class="heading-meta">
+        <span>最后刷新</span>
+        <strong id="last-updated">--</strong>
+      </div>
+    </section>
+
+    <div class="range-bar">
+      <div class="pill-row" id="range-pills">
+        <button type="button" class="pill active" data-range="today">今天</button>
+        <button type="button" class="pill" data-range="7d">近 7 天</button>
+        <button type="button" class="pill" data-range="30d">近 30 天</button>
+        <button type="button" class="pill" data-range="all">全部</button>
+      </div>
+      <span class="range-note" id="range-note">数据来自本地累积记录</span>
+    </div>
+
+    <section class="quota-grid" aria-label="额度窗口">
+      <article class="quota-card" data-kind="five_hour">
+        <div class="quota-card-head">
+          <div>
+            <span class="quota-label">5 小时</span>
+            <strong class="quota-state" id="five-state">等待数据</strong>
+          </div>
+          <span class="window-index">01</span>
+        </div>
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 132 132" aria-hidden="true">
+            <circle class="ring-track" cx="66" cy="66" r="52"></circle>
+            <circle class="ring-progress" id="five-ring" cx="66" cy="66" r="52"></circle>
+          </svg>
+          <div class="ring-center">
+            <strong id="five-percent">--</strong>
+            <span>剩余</span>
+          </div>
+        </div>
+        <div class="quota-numbers">
+          <span>已用</span>
+          <strong id="five-used">--</strong>
+        </div>
+        <div class="quota-footer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
+          <span id="five-reset">--</span>
+        </div>
+      </article>
+
+      <article class="quota-card" data-kind="weekly">
+        <div class="quota-card-head">
+          <div>
+            <span class="quota-label">本周</span>
+            <strong class="quota-state" id="week-state">等待数据</strong>
+          </div>
+          <span class="window-index">02</span>
+        </div>
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 132 132" aria-hidden="true">
+            <circle class="ring-track" cx="66" cy="66" r="52"></circle>
+            <circle class="ring-progress" id="week-ring" cx="66" cy="66" r="52"></circle>
+          </svg>
+          <div class="ring-center">
+            <strong id="week-percent">--</strong>
+            <span>剩余</span>
+          </div>
+        </div>
+        <div class="quota-numbers">
+          <span>已用</span>
+          <strong id="week-used">--</strong>
+        </div>
+        <div class="quota-footer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
+          <span id="week-reset">--</span>
+        </div>
+      </article>
+
+      <article class="quota-card" data-kind="monthly">
+        <div class="quota-card-head">
+          <div>
+            <span class="quota-label">本月</span>
+            <strong class="quota-state" id="month-state">等待数据</strong>
+          </div>
+          <span class="window-index">03</span>
+        </div>
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 132 132" aria-hidden="true">
+            <circle class="ring-track" cx="66" cy="66" r="52"></circle>
+            <circle class="ring-progress" id="month-ring" cx="66" cy="66" r="52"></circle>
+          </svg>
+          <div class="ring-center">
+            <strong id="month-percent">--</strong>
+            <span>剩余</span>
+          </div>
+        </div>
+        <div class="quota-numbers">
+          <span>已用</span>
+          <strong id="month-used">--</strong>
+        </div>
+        <div class="quota-footer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
+          <span id="month-reset">--</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="metric-grid kpi6" aria-label="用量概览">
+      <article class="metric">
+        <span>总费用</span>
+        <strong class="tone-amber" id="metric-cost">--</strong>
+        <small id="metric-cost-sub">平均 -- / 次</small>
+      </article>
+      <article class="metric">
+        <span>总请求</span>
+        <strong class="tone-blue" id="metric-requests">--</strong>
+        <small id="metric-requests-sub">完成 -- / 失败 --</small>
+      </article>
+      <article class="metric">
+        <span>总 TOKEN</span>
+        <strong class="tone-violet" id="metric-tokens">--</strong>
+        <small id="metric-tokens-sub">输入 -- / 输出 --</small>
+      </article>
+      <article class="metric">
+        <span>缓存命中率</span>
+        <strong class="tone-green" id="metric-hitrate">--</strong>
+        <small id="metric-hitrate-sub">命中 -- / 未命中 --</small>
+      </article>
+      <article class="metric">
+        <span>缓存读 / 写</span>
+        <strong class="tone-cyan" id="metric-cache">--</strong>
+        <small id="metric-cache-sub">缓存费用 --</small>
+      </article>
+      <article class="metric">
+        <span>月余额</span>
+        <strong id="metric-monthly">--</strong>
+        <small id="metric-extra">credits</small>
+      </article>
+    </section>
+
+    <section class="split-grid">
+      <article class="panel model-panel">
+        <header class="panel-heading">
+          <div>
+            <span class="section-kicker">模型</span>
+            <h2>模型用量</h2>
+          </div>
+          <div class="segmented" id="model-dim" aria-label="模型用量口径">
+            <button type="button" data-dim="tokens" class="active">TOKEN</button>
+            <button type="button" data-dim="cost">成本</button>
+            <button type="button" data-dim="requests">请求</button>
+          </div>
+        </header>
+        <div class="model-body">
+          <div class="donut-wrap">
+            <svg id="model-donut" viewBox="0 0 180 180" role="img" aria-label="模型用量占比"></svg>
+            <div class="donut-center">
+              <strong id="donut-total">--</strong>
+              <span id="donut-label">总 TOKEN</span>
+            </div>
+          </div>
+          <ol class="model-list" id="model-list"></ol>
+        </div>
+      </article>
+
+      <article class="panel account-panel">
+        <header class="panel-heading">
+          <div>
+            <span class="section-kicker">账户</span>
+            <h2>套餐与连接</h2>
+          </div>
+          <button class="icon-button subtle" id="open-usage-button" type="button" aria-label="打开官方用量页" title="打开官方用量页">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 3h6v6"/><path d="m10 14 11-11"/>
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            </svg>
+          </button>
+        </header>
+        <dl class="detail-list">
+          <div><dt>用户</dt><dd id="detail-user">--</dd></div>
+          <div><dt>套餐</dt><dd id="detail-plan">--</dd></div>
+          <div><dt>状态</dt><dd id="detail-status">--</dd></div>
+          <div><dt>账期结束</dt><dd id="detail-period">--</dd></div>
+          <div><dt>连接</dt><dd id="detail-source">--</dd></div>
+          <div><dt>Key</dt><dd id="detail-key">--</dd></div>
+          <div><dt>本地记录</dt><dd id="detail-records">--</dd></div>
+        </dl>
+        <div class="connection-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3v8Z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span>凭证仅在本机使用，前端接口只返回脱敏内容。</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel trend-panel">
+      <header class="panel-heading">
+        <div>
+          <span class="section-kicker">趋势</span>
+          <h2>每日用量</h2>
+        </div>
+        <div class="segmented" id="trend-metric">
+          <button type="button" data-metric="cost" class="active">费用</button>
+          <button type="button" data-metric="requests">请求</button>
+          <button type="button" data-metric="tokens">TOKEN</button>
+        </div>
+      </header>
+      <div class="chart-wrap" id="chart-wrap">
+        <svg id="trend-chart" viewBox="0 0 900 240" preserveAspectRatio="xMidYMid meet" role="img" aria-label="每日用量趋势"></svg>
+        <div class="chart-empty" id="chart-empty">
+          <strong>还没有可用记录</strong>
+          <span>额度恢复后同步一次即可看到趋势。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel records-panel">
+      <header class="panel-heading">
+        <div>
+          <span class="section-kicker">明细</span>
+          <h2>使用记录</h2>
+        </div>
+        <div class="records-tools">
+          <select id="record-model-filter" class="select"></select>
+          <span class="table-note" id="records-count">--</span>
+        </div>
+      </header>
+      <p class="records-note">
+        上游只提供最近 100 条明细，此表为本地已同步的样本；上方汇总指标来自上游聚合，覆盖更完整。
+      </p>
+      <div class="table-wrap">
+        <table class="records-table">
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>模型</th>
+              <th class="num">输入</th>
+              <th class="num">输出</th>
+              <th class="num">缓存费用</th>
+              <th class="num">费用</th>
+              <th class="num">耗时</th>
+            </tr>
+          </thead>
+          <tbody id="records-body"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="button secondary" id="records-prev" type="button">上一页</button>
+        <span class="pager-info" id="records-pager">--</span>
+        <button class="button secondary" id="records-next" type="button">下一页</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="drawer-backdrop" id="drawer-backdrop" hidden></aside>
+  <aside class="settings-drawer" id="settings-drawer" aria-hidden="true">
+    <header class="drawer-head">
+      <div>
+        <span class="section-kicker">设置</span>
+        <h2>GOAT Gauge</h2>
+      </div>
+      <button class="icon-button" id="close-settings" type="button" aria-label="关闭设置" title="关闭设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+
+    <div class="drawer-content">
+      <section class="settings-section">
+        <div class="settings-title">
+          <div>
+            <h3>Command Code</h3>
+            <p>重新验证或更换 API Key</p>
+          </div>
+          <span class="connection-badge" id="settings-connection">--</span>
+        </div>
+        <label class="field-label" for="settings-key">API Key</label>
+        <div class="key-field">
+          <input id="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="留空则保留现有 Key">
+          <button class="text-button" id="settings-toggle-key" type="button">显示</button>
+        </div>
+        <div class="form-actions compact">
+          <button class="button primary" id="save-key-button" type="button">验证并保存</button>
+          <button class="button secondary" id="detect-key-button" type="button">自动检测</button>
+          <button class="button danger-text" id="clear-key-button" type="button">清除</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-title">
+          <div>
+            <h3>刷新频率</h3>
+            <p>服务端向上游拉取额度的时间间隔</p>
+          </div>
+        </div>
+        <div class="segmented full" id="refresh-segment">
+          <button type="button" data-value="30">30 秒</button>
+          <button type="button" data-value="60">1 分钟</button>
+          <button type="button" data-value="120">2 分钟</button>
+          <button type="button" data-value="300">5 分钟</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-title">
+          <div>
+            <h3>本地历史</h3>
+            <p>控制 SQLite 中趋势快照的保留时间</p>
+          </div>
+        </div>
+        <label class="select-label" for="retention-select">保留时间</label>
+        <select id="retention-select">
+          <option value="7">7 天</option>
+          <option value="14">14 天</option>
+          <option value="30">30 天</option>
+          <option value="90">90 天</option>
+          <option value="365">365 天</option>
+        </select>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-title">
+          <div>
+            <h3>本机数据</h3>
+            <p id="settings-datadir">--</p>
+          </div>
+        </div>
+        <button class="button secondary wide" id="quit-button" type="button">退出 GOAT Gauge</button>
+      </section>
+    </div>
+  </aside>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
