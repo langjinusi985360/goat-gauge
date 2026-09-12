@@ -63,6 +63,25 @@ Use `--demo` to preview the UI without an API key:
 python entry.py --chrome --demo
 ```
 
+## Desktop shortcut
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\make-shortcut.ps1
+```
+
+This creates a **GOAT Gauge (Chrome)** shortcut on the desktop together with
+`assets/goat-gauge.ico`.
+
+The shortcut targets a hidden `powershell.exe` running `launch.ps1` rather than
+`cmd.exe`, which is what makes it behave well on the taskbar: no black console
+flash on launch, and the shortcut keeps its own icon when pinned.
+
+`launch.ps1` probes `http://127.0.0.1:18927` first, so clicking the shortcut
+twice reuses the running server instead of starting a second copy.
+
+To pin it: right-click the desktop shortcut, then **Pin to taskbar**
+(on Windows 11 choose *Show more options* first).
+
 ## Credential lookup
 
 GOAT Gauge uses either a signed-in Chrome session or an API key. For a browser
