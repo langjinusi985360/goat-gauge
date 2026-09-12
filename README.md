@@ -67,6 +67,8 @@ python entry.py --chrome --demo
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\make-shortcut.ps1
+# 可选: 同时注册「登录后静默启动本地服务」
+powershell -ExecutionPolicy Bypass -File .\tools\make-shortcut.ps1 -Startup
 ```
 
 This creates a **GOAT Gauge (Chrome)** shortcut on the desktop together with
@@ -81,6 +83,21 @@ twice reuses the running server instead of starting a second copy.
 
 To pin it: right-click the desktop shortcut, then **Pin to taskbar**
 (on Windows 11 choose *Show more options* first).
+
+### Why the Chrome window pins as "Google Chrome"
+
+Chrome's `--app=` windows inherit Chrome's own taskbar identity, so pinning a
+running window produces a **Google Chrome** entry. GOAT Gauge therefore ships a
+web app manifest and service worker, which lets Chrome install it as a real
+standalone app with its own name and icon.
+
+In the dashboard, open **设置 → 安装为桌面应用**. Once installed, GOAT Gauge
+appears in the Start menu and can be pinned to the taskbar with the purple icon
+and its own window identity.
+
+Because the installed app talks to `http://127.0.0.1:18927`, register the server
+to start at login (`-Startup` above) if you want the pinned app to work right
+after a reboot. The pinned app itself needs the local server running.
 
 ## Credential lookup
 

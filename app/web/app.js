@@ -26,6 +26,8 @@ const app = {
   usageUrl: "https://commandcode.ai/settings/usage",
 };
 
+let installPrompt = null;
+
 function bindEvents() {
   $("refresh-button").addEventListener("click", manualRefresh);
   $("theme-button").addEventListener("click", toggleTheme);
@@ -39,6 +41,7 @@ function bindEvents() {
   $("save-key-button").addEventListener("click", saveKeyFromSettings);
   $("clear-key-button").addEventListener("click", clearCredential);
   $("quit-button").addEventListener("click", quitApp);
+  $("install-app-button").addEventListener("click", installAsApp);
   $("open-usage-button").addEventListener("click", openOfficialUsage);
   $("toggle-key").addEventListener("click", () => togglePassword("api-key", "toggle-key"));
   $("settings-toggle-key").addEventListener("click", () =>
@@ -918,6 +921,24 @@ async function quitApp() {
   window.setTimeout(() => window.close(), 200);
 }
 
+async function installAsApp() {
+  if (!installPrompt) {
+    showToast("浏览器未提供安装入口，可直接把桌面快捷方式固定到任务栏。", "warning");
+    return;
+  }
+  installPrompt.prompt();
+  try {
+    const choice = await installPrompt.userChoice;
+    if (choice && choice.outcome === "accepted") {
+      showToast("安装完成，可从开始菜单或任务栏固定 GOAT Gauge");
+    }
+  } catch {
+    // 用户取消安装时无需提示
+  }
+  installPrompt = null;
+  $("install-app-button").hidden = true;
+}
+
 function setLiveState(state, label) {
   const chip = $("live-chip");
   chip.dataset.state = state;
@@ -1115,3 +1136,29 @@ function svgNode(tag, attributes = {}) {
 }
 
 document.addEventListener("DOMContentLoaded", init);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // PWA 安装能力不是必须的, 注册失败不影响面板使用
+    });
+  });
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  const button = $("install-app-button");
+  if (button) {
+    button.hidden = false;
+  }
+});
+
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  const button = $("install-app-button");
+  if (button) {
+    button.hidden = true;
+  }
+  showToast("GOAT Gauge 已安装为桌面应用");
+});

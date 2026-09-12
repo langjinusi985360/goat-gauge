@@ -8,6 +8,12 @@ GOAT Gauge 启动器
 因为宿主进程是隐藏窗口的 PowerShell 而不是 cmd.exe, 固定到任务栏后
 图标与点击行为都是正常的, 也不会出现黑框闪一下。
 #>
+[CmdletBinding()]
+param(
+    # 只保证本地服务在跑, 不开窗口 (用于开机自启)
+    [switch]$ServerOnly
+)
+
 $ErrorActionPreference = 'SilentlyContinue'
 
 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
@@ -69,6 +75,7 @@ function Open-GaugeWindow {
 }
 
 if (Test-GaugeServer) {
+    if ($ServerOnly) { exit 0 }
     Open-GaugeWindow
     exit 0
 }
@@ -92,4 +99,8 @@ Start-Process -FilePath $pythonw `
 for ($i = 0; $i -lt 60; $i++) {
     Start-Sleep -Milliseconds 500
     if (Test-GaugeServer) { break }
+}
+
+if ($ServerOnly -and (Test-GaugeServer)) {
+    exit 0
 }

@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#7c5cf6">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>GOAT Gauge</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -443,6 +447,12 @@
             <p id="settings-datadir">--</p>
           </div>
         </div>
+        <button class="button secondary wide" id="install-app-button" type="button" hidden>
+          安装为桌面应用
+        </button>
+        <p class="form-note" id="install-app-note">
+          安装后会以独立的 “GOAT Gauge” 应用出现在开始菜单和任务栏，图标与窗口归属不再共用 Chrome。
+        </p>
         <button class="button secondary wide" id="quit-button" type="button">退出 GOAT Gauge</button>
       </section>
     </div>
