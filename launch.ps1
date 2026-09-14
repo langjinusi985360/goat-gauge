@@ -24,6 +24,7 @@ $DevTools   = 9333
 $DataDir    = Join-Path $env:LOCALAPPDATA 'GOATGauge'
 $ProfileDir = Join-Path $DataDir 'chrome-profile'
 $EntryPy    = Join-Path $ProjectDir 'entry.py'
+$PwaAppId   = 'bbdcaiplkiaanemdcpjjbnndfalddhag'
 
 $ChromeCandidates = @(
     (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'),
@@ -35,6 +36,8 @@ if (-not $Chrome) {
     [System.Windows.Forms.MessageBox]::Show('找不到 Google Chrome。', 'GOAT Gauge') | Out-Null
     exit 1
 }
+$ChromeProxy = Join-Path (Split-Path -Parent $Chrome) 'chrome_proxy.exe'
+$PwaMarker = Join-Path $ProfileDir "Default\Web Applications\_crx_$PwaAppId\GOAT Gauge.ico"
 
 function Test-GaugeServer {
     try {
@@ -62,6 +65,17 @@ function Resolve-Pythonw {
 }
 
 function Open-GaugeWindow {
+    if ((Test-Path -LiteralPath $ChromeProxy) -and (Test-Path -LiteralPath $PwaMarker)) {
+        Start-Process -FilePath $ChromeProxy -ArgumentList @(
+            "--remote-debugging-port=$DevTools",
+            '--remote-allow-origins=*',
+            "--user-data-dir=$ProfileDir",
+            '--profile-directory=Default',
+            "--app-id=$PwaAppId"
+        )
+        return
+    }
+
     Start-Process -FilePath $Chrome -ArgumentList @(
         "--remote-debugging-port=$DevTools",
         '--remote-allow-origins=*',
@@ -89,9 +103,9 @@ if (-not $pythonw) {
     exit 1
 }
 
-# entry.py --chrome 会同时启动本地服务并打开 Chrome 应用窗口
+# 先静默启动本地服务, 待端口就绪后再打开 PWA; ServerOnly 始终不弹窗口
 Start-Process -FilePath $pythonw `
-    -ArgumentList @("`"$EntryPy`"", '--chrome') `
+    -ArgumentList @("`"$EntryPy`"", '--chrome', '--no-browser', '--port', "$Port") `
     -WorkingDirectory $ProjectDir `
     -WindowStyle Hidden
 
@@ -101,6 +115,10 @@ for ($i = 0; $i -lt 60; $i++) {
     if (Test-GaugeServer) { break }
 }
 
-if ($ServerOnly -and (Test-GaugeServer)) {
+if ($ServerOnly) {
     exit 0
+}
+
+if (Test-GaugeServer) {
+    Open-GaugeWindow
 }

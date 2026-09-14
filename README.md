@@ -78,8 +78,15 @@ The shortcut targets a hidden `powershell.exe` running `launch.ps1` rather than
 `cmd.exe`, which is what makes it behave well on the taskbar: no black console
 flash on launch, and the shortcut keeps its own icon when pinned.
 
-`launch.ps1` probes `http://127.0.0.1:18927` first, so clicking the shortcut
-twice reuses the running server instead of starting a second copy.
+`launch.ps1` starts or reuses the local server, waits for it to become ready,
+and then opens the installed PWA through its Chrome app identity. If the PWA is
+not installed yet, it falls back to a regular Chrome app window. This ordering
+prevents the taskbar shortcut from opening the dashboard before the local
+server is available.
+
+In `-ServerOnly` mode, the same launcher starts only the local server and never
+opens a browser window. This is the mode used by the optional login startup
+entry.
 
 To pin it: right-click the desktop shortcut, then **Pin to taskbar**
 (on Windows 11 choose *Show more options* first).
