@@ -122,6 +122,20 @@ function bindEvents() {
     updateSetting("history_retention_days", Number($("retention-select").value));
   });
 
+  document.querySelectorAll("#currency-segment button").forEach((button) => {
+    button.addEventListener("click", () =>
+      updateSetting("currency", button.dataset.value)
+    );
+  });
+
+  const rateInput = $("rate-input");
+  rateInput.addEventListener("change", () => saveCurrencyRate(rateInput.value));
+  rateInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      rateInput.blur();
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeSettings();
@@ -367,10 +381,33 @@ async function updateSetting(key, value) {
       app.state.settings = settings;
     }
     renderSettings(settings);
+    if (key === "currency" || key === "usd_to_cny") {
+      refreshCostViews();
+    }
     showToast("设置已保存");
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+async function saveCurrencyRate(raw) {
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate < 0.1 || rate > 20) {
+    showToast("请输入 0.1 到 20 之间的汇率", "error");
+    renderSettings(app.state?.settings || {});
+    return;
+  }
+  await updateSetting("usd_to_cny", rate);
+}
+
+function refreshCostViews() {
+  if (!app.state?.configured) {
+    return;
+  }
+  renderKpis();
+  renderModels();
+  renderTrend();
+  loadRecords();
 }
 
 function renderDashboard(state) {
@@ -858,6 +895,17 @@ function renderSettings(settings) {
   if ([...select.options].some((option) => option.value === retention)) {
     select.value = retention;
   }
+  const currency = String(settings.currency || "USD").toUpperCase();
+  document.querySelectorAll("#currency-segment button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.value === currency);
+  });
+  const rateField = $("rate-field");
+  rateField.hidden = currency !== "CNY";
+  const rateInput = $("rate-input");
+  if (document.activeElement !== rateInput) {
+    const rate = Number(settings.usd_to_cny);
+    rateInput.value = Number.isFinite(rate) && rate > 0 ? String(rate) : "7.2";
+  }
   if (app.state?.meta?.data_dir) {
     $("settings-datadir").textContent = app.state.meta.data_dir;
   }
@@ -997,18 +1045,30 @@ function formatCredits(value) {
   return number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+function activeCurrency() {
+  return String(app.state?.settings?.currency || "USD").toUpperCase() === "CNY"
+    ? "CNY"
+    : "USD";
+}
+
+function usdToCnyRate() {
+  const rate = Number(app.state?.settings?.usd_to_cny);
+  return Number.isFinite(rate) && rate > 0 ? rate : 7.2;
+}
+
+function formatAmount(number) {
+  return Math.abs(number) >= 1 ? number.toFixed(2) : number.toFixed(4);
+}
+
 function formatMoney(value) {
   const number = numberOrNull(value);
   if (number === null) {
     return "--";
   }
-  if (Math.abs(number) >= 100) {
-    return `$${number.toFixed(2)}`;
+  if (activeCurrency() === "CNY") {
+    return `¥${formatAmount(number * usdToCnyRate())}`;
   }
-  if (Math.abs(number) >= 1) {
-    return `$${number.toFixed(2)}`;
-  }
-  return `$${number.toFixed(4)}`;
+  return `$${formatAmount(number)}`;
 }
 
 function formatInteger(value) {
@@ -1050,7 +1110,7 @@ function formatModelValue(value, dim) {
 
 function formatAxisValue(value, metric) {
   if (metric === "cost") {
-    return `$${Number(value).toFixed(2)}`;
+    return formatMoney(value);
   }
   return formatCompact(value);
 }

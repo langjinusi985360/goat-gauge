@@ -16,6 +16,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "refresh_seconds": 60,
     "history_retention_days": 30,
     "api_base": "https://api.commandcode.ai",
+    "currency": "USD",
+    "usd_to_cny": 7.2,
 }
 
 

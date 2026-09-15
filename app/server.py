@@ -472,6 +472,17 @@ class GaugeService:
             text = str(values["api_base"]).strip().rstrip("/")
             if text.startswith("https://") or text.startswith("http://"):
                 clean["api_base"] = text
+        if "currency" in values:
+            currency = str(values["currency"]).strip().upper()
+            if currency in {"USD", "CNY"}:
+                clean["currency"] = currency
+        if "usd_to_cny" in values:
+            try:
+                rate = float(values["usd_to_cny"])
+            except (TypeError, ValueError):
+                rate = None
+            if rate is not None and 0.1 <= rate <= 20:
+                clean["usd_to_cny"] = round(rate, 4)
         return self.store.save_settings(clean)
 
     def set_key(self, api_key: str, *, remember: bool = True) -> dict[str, Any]:

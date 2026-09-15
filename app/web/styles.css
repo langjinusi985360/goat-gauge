@@ -1109,6 +1109,10 @@ html[data-theme="light"] .theme-sun { display: block; }
   grid-template-columns: repeat(4, 1fr);
 }
 
+.segmented.full.duo {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .segmented button {
   min-height: 28px;
   padding: 0 11px;
@@ -1376,6 +1380,32 @@ select {
 }
 
 select:focus {
+  border-color: var(--accent);
+}
+
+.rate-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.rate-field input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: var(--muted);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.rate-field input:focus {
   border-color: var(--accent);
 }
 

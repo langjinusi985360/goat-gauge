@@ -132,6 +132,19 @@ Runtime data defaults to `%LOCALAPPDATA%\GOATGauge`.
 
 Set `GOATGAUGE_DATA` to use a portable data directory.
 
+### Currency
+
+The settings drawer can show costs in `USD` (default) or `CNY`. Costs are
+always fetched and stored in USD, so switching currency only changes how they
+are displayed. In CNY mode an editable rate field controls the conversion
+(default `1 USD = 7.2 CNY`), which keeps the app working offline instead of
+depending on a live exchange-rate API.
+
+Currency conversion applies to real cost fields only (`cost_total`,
+`cost_input`, `cost_output`, `cost_cache`, and average cost). Quota and credit
+figures such as `monthly_remaining` or window usage are Command Code credits,
+not dollars, and are never converted.
+
 ### Upstream limits
 
 Command Code's usage endpoint only exposes the newest bounded window
