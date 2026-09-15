@@ -88,6 +88,12 @@ In `-ServerOnly` mode, the same launcher starts only the local server and never
 opens a browser window. This is the mode used by the optional login startup
 entry.
 
+The normal launcher is also self-healing. It opens the PWA first so the
+dedicated Chrome profile exposes its authenticated session through DevTools,
+then waits briefly for the dashboard session to recover. If the running server
+is still stuck unauthenticated, the launcher exits that server cleanly, starts
+a fresh one, and retries once.
+
 To pin it: right-click the desktop shortcut, then **Pin to taskbar**
 (on Windows 11 choose *Show more options* first).
 

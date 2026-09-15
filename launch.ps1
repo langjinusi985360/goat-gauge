@@ -39,13 +39,16 @@ if (-not $Chrome) {
 $ChromeProxy = Join-Path (Split-Path -Parent $Chrome) 'chrome_proxy.exe'
 $PwaMarker = Join-Path $ProfileDir "Default\Web Applications\_crx_$PwaAppId\GOAT Gauge.ico"
 
-function Test-GaugeServer {
+function Get-GaugeState {
     try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:$Port/api/version" -TimeoutSec 2
-        return ($response.StatusCode -eq 200)
+        return Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/state" -TimeoutSec 3
     } catch {
-        return $false
+        return $null
     }
+}
+
+function Test-GaugeServer {
+    return $null -ne (Get-GaugeState)
 }
 
 function Resolve-Pythonw {
@@ -62,6 +65,41 @@ function Resolve-Pythonw {
         if ($candidate -and (Test-Path -LiteralPath $candidate)) { return $candidate }
     }
     return $null
+}
+
+function Start-GaugeServer {
+    Start-Process -FilePath $script:pythonw `
+        -ArgumentList @(
+            "`"$script:EntryPy`"",
+            '--chrome',
+            '--no-browser',
+            '--port',
+            "$script:Port"
+        ) `
+        -WorkingDirectory $script:ProjectDir `
+        -WindowStyle Hidden
+
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Milliseconds 500
+        if (Test-GaugeServer) { return $true }
+    }
+    return $false
+}
+
+function Stop-GaugeServer {
+    try {
+        Invoke-RestMethod `
+            -Method Post `
+            -Uri "http://127.0.0.1:$script:Port/api/quit" `
+            -TimeoutSec 3 | Out-Null
+    } catch {
+        return
+    }
+
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Milliseconds 250
+        if (-not (Test-GaugeServer)) { return }
+    }
 }
 
 function Open-GaugeWindow {
@@ -88,12 +126,6 @@ function Open-GaugeWindow {
     )
 }
 
-if (Test-GaugeServer) {
-    if ($ServerOnly) { exit 0 }
-    Open-GaugeWindow
-    exit 0
-}
-
 $pythonw = Resolve-Pythonw
 if (-not $pythonw) {
     [System.Windows.Forms.MessageBox]::Show(
@@ -103,22 +135,43 @@ if (-not $pythonw) {
     exit 1
 }
 
-# 先静默启动本地服务, 待端口就绪后再打开 PWA; ServerOnly 始终不弹窗口
-Start-Process -FilePath $pythonw `
-    -ArgumentList @("`"$EntryPy`"", '--chrome', '--no-browser', '--port', "$Port") `
-    -WorkingDirectory $ProjectDir `
-    -WindowStyle Hidden
-
-# 等本地服务就绪; 若超时也只是退出, entry.py 仍会继续启动
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep -Milliseconds 500
-    if (Test-GaugeServer) { break }
-}
-
 if ($ServerOnly) {
+    if (-not (Test-GaugeServer)) {
+        Start-GaugeServer | Out-Null
+    }
     exit 0
 }
 
-if (Test-GaugeServer) {
+if (-not (Test-GaugeServer)) {
+    Start-GaugeServer | Out-Null
+}
+
+# 先打开 PWA 让专用 Chrome 暴露 CDP, Cookie Watcher 会立即恢复会话
+Open-GaugeWindow
+
+$state = Get-GaugeState
+if ($state -and $state.configured) {
+    exit 0
+}
+
+# 等登录态恢复; 网络波动或 Cookie 刷新通常只需几秒
+for ($i = 0; $i -lt 24; $i++) {
+    Start-Sleep -Milliseconds 500
+    $state = Get-GaugeState
+    if ($state -and $state.configured) {
+        exit 0
+    }
+}
+
+# 仍未恢复到可用登录态 -> 自动重启后端一次, 清除卡死的旧状态
+Stop-GaugeServer
+if (Start-GaugeServer) {
     Open-GaugeWindow
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Milliseconds 500
+        $state = Get-GaugeState
+        if ($state -and $state.configured) {
+            exit 0
+        }
+    }
 }

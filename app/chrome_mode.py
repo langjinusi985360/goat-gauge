@@ -133,30 +133,31 @@ def _cookie_watcher(
 ) -> None:
     last_signature = ""
     while not stop_event.wait(2.0):
-        cookies = read_chrome_cookies()
-        if not cookies:
-            continue
-        auth_cookies = [
-            cookie
-            for cookie in cookies
-            if any(
-                marker in str(cookie.get("name", ""))
-                for marker in ("session_token", "session_data")
-            )
-        ]
-        if not auth_cookies:
-            continue
-        signature = "|".join(
-            f"{cookie.get('name')}={cookie.get('value')}" for cookie in auth_cookies
-        )
-        if signature == last_signature:
-            continue
         try:
+            cookies = read_chrome_cookies()
+            if not cookies:
+                continue
+            auth_cookies = [
+                cookie
+                for cookie in cookies
+                if any(
+                    marker in str(cookie.get("name", ""))
+                    for marker in ("session_token", "session_data")
+                )
+            ]
+            if not auth_cookies:
+                continue
+            signature = "|".join(
+                f"{cookie.get('name')}={cookie.get('value')}"
+                for cookie in auth_cookies
+            )
+            if signature == last_signature:
+                continue
             service.set_browser_session(auth_cookies)
             last_signature = signature
             log("captured Command Code browser session")
         except Exception as exc:  # noqa: BLE001
-            log(f"browser session rejected: {type(exc).__name__}: {exc}")
+            log(f"cookie watcher iteration failed: {type(exc).__name__}: {exc}")
 
 
 def main(*, host: str, port: int, demo: bool, open_browser: bool) -> None:
