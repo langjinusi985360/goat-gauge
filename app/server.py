@@ -23,12 +23,24 @@ from .commandcode_api import (
     fetch_usage_charts,
     fetch_usage_records,
 )
-from .credentials import CredentialError, CredentialStore, detect_source, mask_key, validate_key
+from .credentials import (
+    BrowserSessionStore,
+    CredentialError,
+    CredentialStore,
+    detect_source,
+    mask_key,
+    validate_key,
+)
 from .store import DEFAULT_SETTINGS, Store
 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _is_auth_error(exc: Exception) -> bool:
+    """True when Command Code rejected the credential itself (not a network blip)."""
+    return isinstance(exc, CommandCodeAPIError) and exc.status in (401, 403)
 
 
 DEMO_MODELS = (
@@ -195,6 +207,7 @@ class GaugeService:
         if demo:
             base_store.close()
         self.credential_store = CredentialStore(self.store.data_dir)
+        self.browser_session_store = BrowserSessionStore(self.store.data_dir)
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._stop_callback: Any = None
@@ -213,6 +226,7 @@ class GaugeService:
         self._usage_synced_at = 0
         self._usage_synced_count = 0
         self._usage_error: str | None = None
+        self._relogin_requested_at = 0.0
         self._load_initial_credential()
 
     @property
@@ -235,6 +249,7 @@ class GaugeService:
             self._api_key = detected_key
             self._credential_mode = "api_key"
             self._key_source = detected_source or "环境变量"
+            self._restore_browser_session()
             return
 
         saved_key = self.credential_store.load()
@@ -242,12 +257,65 @@ class GaugeService:
             self._api_key = saved_key
             self._credential_mode = "api_key"
             self._key_source = "本地加密凭据"
+            self._restore_browser_session()
             return
 
         if detected_key:
             self._api_key = detected_key
             self._credential_mode = "api_key"
             self._key_source = detected_source or "本地配置文件"
+            self._restore_browser_session()
+            return
+
+        self._restore_browser_session()
+
+    def _restore_browser_session(self) -> bool:
+        """Reuse the last captured browser session so a restart needs no Chrome.
+
+        The session is kept alongside an API key because Command Code only
+        exposes per-request usage records to a signed-in browser.
+        """
+        session = self.browser_session_store.load()
+        if not session:
+            return False
+        cookie, user_agent = session
+        with self._lock:
+            self._browser_cookie = cookie
+            self._browser_user_agent = user_agent
+            if not self._api_key:
+                self._credential_mode = "browser"
+                self._key_source = "本地加密会话"
+        return True
+
+    def _persist_browser_session(self, cookie_header: str, user_agent: str) -> None:
+        try:
+            self.browser_session_store.save(cookie_header, user_agent)
+        except OSError:
+            pass
+
+    def _drop_browser_session(self) -> None:
+        with self._lock:
+            self._browser_cookie = ""
+            self._browser_user_agent = "Mozilla/5.0"
+            if self._credential_mode == "browser":
+                self._credential_mode = "none"
+                self._key_source = "未配置"
+        self.browser_session_store.delete()
+
+    def _request_relogin(self) -> None:
+        """Open the Command Code sign-in page at most once a minute."""
+        callback = self._open_browser_callback
+        if callback is None:
+            return
+        now = time.time()
+        with self._lock:
+            if now - self._relogin_requested_at < 60:
+                return
+            self._relogin_requested_at = now
+        try:
+            callback()
+        except Exception:  # noqa: BLE001
+            pass
 
     def set_stop_callback(self, callback: Any) -> None:
         self._stop_callback = callback
@@ -291,6 +359,7 @@ class GaugeService:
                     "key_source": self._key_source,
                     "masked_key": self.masked_key(),
                     "credential_mode": self._credential_mode,
+                    "browser_session_active": bool(self._browser_cookie),
                     "data_dir": self.data_dir,
                     "server_time": _now_ms(),
                     "api_base": settings.get("api_base", DEFAULT_SETTINGS["api_base"]),
@@ -402,8 +471,7 @@ class GaugeService:
         with self._lock:
             cookie = self._browser_cookie
             user_agent = self._browser_user_agent
-            mode = self._credential_mode
-        if mode != "browser" or not cookie:
+        if not cookie:
             return {"ok": False, "error": "usage-records-requires-browser-session"}
 
         settings = self.store.get_settings()
@@ -416,6 +484,8 @@ class GaugeService:
         except Exception as exc:  # noqa: BLE001
             with self._lock:
                 self._usage_error = str(exc)
+            if _is_auth_error(exc):
+                self._drop_browser_session()
             raise
 
         inserted = self.store.insert_usage_records(records)
@@ -508,6 +578,7 @@ class GaugeService:
 
     def clear_key(self) -> dict[str, Any]:
         self.credential_store.delete()
+        self.browser_session_store.delete()
         with self._lock:
             self._api_key = None
             self._browser_cookie = ""
@@ -532,6 +603,8 @@ class GaugeService:
         cookies: list[dict[str, Any]],
         *,
         user_agent: str = "Mozilla/5.0",
+        persist: bool = True,
+        replace_api_key: bool = False,
     ) -> dict[str, Any]:
         pairs: list[str] = []
         for cookie in cookies:
@@ -556,12 +629,17 @@ class GaugeService:
         with self._lock:
             self._browser_cookie = cookie_header
             self._browser_user_agent = user_agent or "Mozilla/5.0"
-            self._credential_mode = "browser"
-            self._key_source = "本机 Chrome 登录态"
+            # A long-lived API key stays the primary credential; the browser
+            # session is only attached for per-request usage records.
+            if replace_api_key or not self._api_key:
+                self._credential_mode = "browser"
+                self._key_source = "本机 Chrome 登录态"
             self._snapshot = payload
             self._last_error = None
             self._next_refresh_at = _now_ms() + int(settings["refresh_seconds"]) * 1000
         self.store.save_snapshot(payload)
+        if persist:
+            self._persist_browser_session(cookie_header, user_agent or "Mozilla/5.0")
         try:
             self.sync_usage_records()
         except Exception:
@@ -626,6 +704,10 @@ class GaugeService:
         except Exception as exc:  # noqa: BLE001
             with self._lock:
                 self._last_error = str(exc)
+                mode = self._credential_mode
+            if mode == "browser" and _is_auth_error(exc):
+                self._drop_browser_session()
+                self._request_relogin()
             raise
         finally:
             with self._lock:
@@ -880,6 +962,7 @@ class GaugeHandler(BaseHTTPRequestHandler):
             state = self.service.set_browser_session(
                 cookies,
                 user_agent=str(body.get("user_agent") or "Mozilla/5.0"),
+                replace_api_key=True,
             )
             _json_response(self, {"ok": True, **state})
             return

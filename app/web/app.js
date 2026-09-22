@@ -868,6 +868,14 @@ function renderAlerts(meta, alerts) {
   if (meta.usage_error && !meta.last_error) {
     items.unshift({ level: "warning", message: `使用记录同步失败：${meta.usage_error}` });
   }
+  if (meta.browser_session_active === false) {
+    items.push({
+      level: "info",
+      message:
+        "额度已实时同步；模型明细、缓存命中与逐条记录需要在本机 Chrome 登录 Command Code 后自动补齐。",
+      action: "chrome-login",
+    });
+  }
   if (!items.length) {
     stack.hidden = true;
     stack.replaceChildren();
@@ -879,7 +887,17 @@ function renderAlerts(meta, alerts) {
       const node = document.createElement("div");
       node.className = "alert";
       node.dataset.level = item.level || "info";
-      node.textContent = item.message || "";
+      const text = document.createElement("span");
+      text.textContent = item.message || "";
+      node.append(text);
+      if (item.action === "chrome-login") {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "alert-action";
+        action.textContent = "登录 Chrome";
+        action.addEventListener("click", openChromeLogin);
+        node.append(action);
+      }
       return node;
     })
   );

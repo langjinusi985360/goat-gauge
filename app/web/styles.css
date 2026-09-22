@@ -578,6 +578,23 @@ html[data-theme="light"] .theme-sun { display: block; }
   border-left-color: var(--blue);
 }
 
+.alert-action {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.alert-action:hover {
+  background: var(--surface-3);
+}
+
 .page-heading {
   display: flex;
   align-items: flex-end;

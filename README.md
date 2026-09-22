@@ -41,9 +41,9 @@ python entry.py --chrome
 
 The first run opens a dedicated Chrome profile at the Command Code sign-in
 page. Sign in once in that window. GOAT Gauge then captures the authenticated
-browser session through Chrome DevTools, keeps the session in memory, and
-starts refreshing the dashboard automatically. The dashboard opens in the same
-Chrome profile.
+browser session through Chrome DevTools, saves it encrypted on disk, and starts
+refreshing the dashboard automatically. The dashboard opens in the same Chrome
+profile.
 
 If you prefer not to use browser sign-in, the onboarding screen also accepts a
 Command Code API key.
@@ -122,9 +122,49 @@ session, the key is never handled manually. For API-key mode, it checks:
 3. The encrypted key saved by GOAT Gauge
 4. Known values in `%USERPROFILE%\.commandcode\auth.json` or
    `%USERPROFILE%\.commandcode\config.json`
+5. The Command Code provider stored by
+   [CC Switch](https://github.com/farion1231/cc-switch) in
+   `%USERPROFILE%\.cc-switch\cc-switch.db`
+
+Step 5 only reads providers that actually point at Command Code, so keys that
+belong to other vendors in the same database are never used.
 
 If no key or browser session is available, the interface asks for an API key.
 It is validated before being saved. The key is never returned to the browser.
+
+### Staying signed in
+
+Auto-login used to depend on Chrome handing over a live cookie on every launch,
+so an expired or renamed cookie silently logged the dashboard out. GOAT Gauge
+now:
+
+- reuses a Command Code API key from CC Switch when one exists, which never
+  expires the way a browser session does;
+- stores the captured browser session in `browser-session.bin`, encrypted with
+  Windows DPAPI, and restores it at startup without needing Chrome;
+- captures every `commandcode.ai` cookie instead of a fixed list of cookie
+  names, so a renamed sign-in cookie no longer breaks detection;
+- keeps session cookies across Chrome restarts by enabling `Continue where you
+  left off` in the dedicated profile;
+- clears a rejected session and reopens the Command Code sign-in page when the
+  upstream API answers `401`/`403`.
+
+Run the settings drawer's **自动检测** button to re-scan for a key.
+
+### API key plus browser session
+
+Command Code only exposes per-request usage records to a signed-in browser, so
+the two credentials cover different things:
+
+- The **API key** drives quota, credits, plan, and summary numbers. It does not
+  expire the way a browser session does, so the dashboard always has live data.
+- The **browser session** powers per-request records, per-model breakdown,
+  cache hit rate, and the wider local ranges.
+
+When a key is available it stays the primary credential and the captured
+browser session is attached alongside it for the detail endpoints. If the
+browser session is missing, the dashboard still shows live quota and adds a
+note with a **登录 Chrome** button.
 
 ## Data
 

@@ -10,6 +10,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+from .commandcode_api import CommandCodeAPIError
+from .credentials import CredentialError
 from .server import GaugeService, start_server, stop_server
 from .store import data_dir
 
@@ -52,9 +54,41 @@ def _profile_dir() -> Path:
     return data_dir() / "chrome-profile"
 
 
+def _preserve_session_cookies(profile: Path) -> None:
+    """Keep Command Code's session cookie alive across Chrome restarts.
+
+    Chrome drops session cookies on a clean exit unless the profile is set to
+    restore the previous session, which is what kept logging the app out.
+    """
+    preferences_path = profile / "Default" / "Preferences"
+    try:
+        preferences = json.loads(preferences_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        preferences = {}
+    if not isinstance(preferences, dict):
+        return
+    session = preferences.get("session")
+    if isinstance(session, dict) and session.get("restore_on_startup") == 1:
+        return
+    preferences.setdefault("session", {})
+    if not isinstance(preferences["session"], dict):
+        preferences["session"] = {}
+    preferences["session"]["restore_on_startup"] = 1
+    try:
+        temp = preferences_path.with_suffix(".tmp")
+        temp.write_text(
+            json.dumps(preferences, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        os.replace(temp, preferences_path)
+    except OSError:
+        pass
+
+
 def open_chrome(url: str) -> subprocess.Popen[bytes]:
     profile = _profile_dir()
     profile.mkdir(parents=True, exist_ok=True)
+    _preserve_session_cookies(profile)
     args = [
         chrome_path(),
         f"--remote-debugging-port={CDP_PORT}",
@@ -137,25 +171,33 @@ def _cookie_watcher(
             cookies = read_chrome_cookies()
             if not cookies:
                 continue
-            auth_cookies = [
-                cookie
-                for cookie in cookies
-                if any(
-                    marker in str(cookie.get("name", ""))
-                    for marker in ("session_token", "session_data")
-                )
-            ]
-            if not auth_cookies:
+            # Send every commandcode.ai cookie: the sign-in cookie has been
+            # renamed before, and a name whitelist silently broke auto-login.
+            # Tracking-only cookies are skipped; real sign-in cookies are
+            # HttpOnly, so this avoids pointless upstream calls.
+            if not any(cookie.get("httpOnly") for cookie in cookies):
+                last_signature = ""
                 continue
             signature = "|".join(
                 f"{cookie.get('name')}={cookie.get('value')}"
-                for cookie in auth_cookies
+                for cookie in cookies
             )
             if signature == last_signature:
                 continue
-            service.set_browser_session(auth_cookies)
             last_signature = signature
-            log("captured Command Code browser session")
+            try:
+                state = service.set_browser_session(cookies)
+            except CommandCodeAPIError as exc:
+                log(f"browser session rejected: {type(exc).__name__}: {exc}")
+                if exc.status not in (401, 403):
+                    # Network hiccup: try the same cookies again next tick.
+                    last_signature = ""
+                continue
+            except CredentialError as exc:
+                log(f"browser session unusable: {exc}")
+                continue
+            if (state.get("meta") or {}).get("credential_mode") == "browser":
+                log("captured Command Code browser session")
         except Exception as exc:  # noqa: BLE001
             log(f"cookie watcher iteration failed: {type(exc).__name__}: {exc}")
 

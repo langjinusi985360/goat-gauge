@@ -6,7 +6,9 @@ import base64
 import ctypes
 import json
 import os
+import sqlite3
 import stat
+import time
 from ctypes import wintypes
 from pathlib import Path
 from typing import Any, Iterable
@@ -19,8 +21,14 @@ KEY_NAMES = {
     "commandcodeapikey",
     "command_code_api_key",
     "key",
+    "openaiapikey",
+    "openai_api_key",
     "token",
 }
+
+CC_SWITCH_DB_ENV = "CC_SWITCH_DB"
+CC_SWITCH_DB_NAME = "cc-switch.db"
+COMMAND_CODE_MARKERS = ("commandcode", "command code")
 
 
 class CredentialError(RuntimeError):
@@ -81,6 +89,74 @@ def _read_key_from_file(path: Path) -> tuple[str, str] | None:
     return None
 
 
+def cc_switch_db_path() -> Path:
+    configured = os.environ.get(CC_SWITCH_DB_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".cc-switch" / CC_SWITCH_DB_NAME
+
+
+def _is_command_code_provider(*fields: str) -> bool:
+    blob = "\n".join(fields).lower()
+    return any(marker in blob for marker in COMMAND_CODE_MARKERS)
+
+
+def _read_cc_switch_key() -> tuple[str, str] | None:
+    """Reuse the Command Code API key that CC Switch already keeps on disk.
+
+    Only providers that clearly point at Command Code are considered, so keys
+    belonging to other vendors are never sent anywhere.
+    """
+    path = cc_switch_db_path()
+    if not path.is_file():
+        return None
+
+    try:
+        connection = sqlite3.connect(
+            f"{path.as_uri()}?mode=ro",
+            uri=True,
+            timeout=1.5,
+        )
+    except sqlite3.Error:
+        return None
+
+    try:
+        rows = connection.execute(
+            "SELECT name, website_url, settings_config FROM providers"
+        ).fetchall()
+    except sqlite3.Error:
+        return None
+    finally:
+        connection.close()
+
+    best: tuple[int, str, str] | None = None
+    for name, website, raw in rows:
+        name = str(name or "")
+        website = str(website or "")
+        raw = str(raw or "")
+        if not _is_command_code_provider(name, website, raw):
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        for _, candidate in _walk_json(payload):
+            try:
+                key = validate_key(candidate)
+            except CredentialError:
+                continue
+            # A provider whose base_url points at api.commandcode.ai is the
+            # most trustworthy match; name/website matches are the fallback.
+            priority = 0 if "api.commandcode.ai" in raw.lower() else 1
+            label = f"CC Switch（{name or 'Command Code'}）"
+            if best is None or priority < best[0]:
+                best = (priority, key, label)
+            break
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
 def detect_source() -> tuple[str | None, str | None]:
     """Return (key, source label) without exposing the key."""
     for name in KEY_ENV_NAMES:
@@ -103,6 +179,11 @@ def detect_source() -> tuple[str | None, str | None]:
         if found:
             key, source = found
             return key, source
+
+    found = _read_cc_switch_key()
+    if found:
+        key, source = found
+        return key, source
     return None, None
 
 
@@ -183,21 +264,34 @@ def _unprotect_windows(data: bytes) -> bytes:
         kernel32.LocalFree(ctypes.cast(blob_out.pbData, ctypes.c_void_p))
 
 
-class CredentialStore:
-    """Persist one API key, encrypted with DPAPI on Windows."""
+def _encrypt_bytes(raw: bytes) -> bytes:
+    if os.name == "nt":
+        return b"DPAPI1\0" + _protect_windows(raw)
+    return b"PLAIN1\0" + base64.b64encode(raw)
+
+
+def _decrypt_bytes(payload: bytes) -> bytes | None:
+    if payload.startswith(b"DPAPI1\0"):
+        if os.name != "nt":
+            return None
+        return _unprotect_windows(payload[7:])
+    if payload.startswith(b"PLAIN1\0"):
+        return base64.b64decode(payload[7:])
+    return None
+
+
+class _EncryptedFile:
+    """Small DPAPI-encrypted single-file store."""
+
+    filename = "secret.bin"
 
     def __init__(self, data_dir: Path) -> None:
         self.data_dir = Path(data_dir)
-        self.path = self.data_dir / "credential.bin"
+        self.path = self.data_dir / self.filename
 
-    def save(self, key: str) -> None:
-        key = validate_key(key)
+    def write(self, raw: bytes) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        raw = key.encode("utf-8")
-        if os.name == "nt":
-            payload = b"DPAPI1\0" + _protect_windows(raw)
-        else:
-            payload = b"PLAIN1\0" + base64.b64encode(raw)
+        payload = _encrypt_bytes(raw)
         temp = self.path.with_suffix(".tmp")
         temp.write_bytes(payload)
         os.replace(temp, self.path)
@@ -206,21 +300,13 @@ class CredentialStore:
         except OSError:
             pass
 
-    def load(self) -> str | None:
+    def read(self) -> bytes | None:
         try:
             payload = self.path.read_bytes()
         except OSError:
             return None
         try:
-            if payload.startswith(b"DPAPI1\0"):
-                if os.name != "nt":
-                    return None
-                raw = _unprotect_windows(payload[7:])
-            elif payload.startswith(b"PLAIN1\0"):
-                raw = base64.b64decode(payload[7:])
-            else:
-                return None
-            return validate_key(raw.decode("utf-8", errors="strict"))
+            return _decrypt_bytes(payload)
         except (CredentialError, UnicodeError, ValueError):
             return None
 
@@ -229,3 +315,54 @@ class CredentialStore:
             self.path.unlink()
         except FileNotFoundError:
             pass
+
+
+class CredentialStore(_EncryptedFile):
+    """Persist one API key, encrypted with DPAPI on Windows."""
+
+    filename = "credential.bin"
+
+    def save(self, key: str) -> None:
+        self.write(validate_key(key).encode("utf-8"))
+
+    def load(self) -> str | None:
+        raw = self.read()
+        if raw is None:
+            return None
+        try:
+            return validate_key(raw.decode("utf-8", errors="strict"))
+        except (CredentialError, UnicodeError):
+            return None
+
+
+class BrowserSessionStore(_EncryptedFile):
+    """Persist the captured commandcode.ai browser session (cookies)."""
+
+    filename = "browser-session.bin"
+
+    def save(self, cookie_header: str, user_agent: str) -> None:
+        if not cookie_header.strip():
+            return
+        payload = json.dumps(
+            {
+                "cookie": cookie_header,
+                "user_agent": user_agent or "Mozilla/5.0",
+                "saved_at": int(time.time()),
+            }
+        )
+        self.write(payload.encode("utf-8"))
+
+    def load(self) -> tuple[str, str] | None:
+        raw = self.read()
+        if raw is None:
+            return None
+        try:
+            data = json.loads(raw.decode("utf-8", errors="strict"))
+        except (UnicodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        cookie = str(data.get("cookie") or "").strip()
+        if not cookie:
+            return None
+        return cookie, str(data.get("user_agent") or "Mozilla/5.0")
