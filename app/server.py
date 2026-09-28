@@ -376,6 +376,43 @@ class GaugeService:
                 "settings": settings,
             }
 
+    def _upstream_usage_totals(self) -> dict[str, Any] | None:
+        """Billing-period aggregate from the latest upstream snapshot.
+
+        The API key can read ``/alpha/usage/summary`` even when no browser
+        session is available, which is exactly the case where the local
+        per-request store has nothing to show.
+        """
+        with self._lock:
+            snapshot = self._snapshot or {}
+        usage = snapshot.get("usage") or {}
+        if not isinstance(usage, dict):
+            return None
+        requests = int(usage.get("total_count") or 0)
+        if requests <= 0:
+            return None
+        tokens_in = int(usage.get("tokens_in") or 0)
+        tokens_out = int(usage.get("tokens_out") or 0)
+        return {
+            "requests": requests,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "tokens_total": tokens_in + tokens_out,
+            "cost_total": float(usage.get("total_cost") or 0.0),
+            "average_cost": float(usage.get("average_cost") or 0.0),
+            "cost_cache": 0.0,
+            "completed": int(usage.get("completed_count") or 0),
+            "failed": int(usage.get("failed_count") or 0),
+            "success_rate": float(usage.get("success_rate") or 0.0),
+            "cache_read": 0,
+            "cache_write": 0,
+            "cache_miss": 0,
+            "hit_rate": 0.0,
+            "detail_records": 0,
+            "source": "upstream",
+            "period": str(usage.get("period_basis") or "billing-period"),
+        }
+
     def dashboard(self, range_key: str = "today") -> dict[str, Any]:
         valid = range_key if range_key in ("today", "7d", "30d", "all") else "today"
         record_totals = self.store.usage_totals(valid)
@@ -396,6 +433,13 @@ class GaugeService:
             totals["cache_savings"] = cache["cache_savings"]
         totals["detail_records"] = record_totals.get("requests", 0)
         totals["source"] = "aggregate" if has_buckets else "records"
+        if not has_buckets and not int(record_totals.get("requests") or 0):
+            # Without a signed-in browser session there are no per-request
+            # records at all, so fall back to the billing-period aggregate
+            # that the API key can still read instead of showing zeros.
+            upstream = self._upstream_usage_totals()
+            if upstream:
+                totals.update(upstream)
 
         models = self.store.model_stats(valid)
         cache_by_model = self.store.model_cache_stats(valid)

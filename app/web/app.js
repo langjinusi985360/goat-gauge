@@ -520,13 +520,17 @@ function renderKpis() {
   const average = numberOrNull(totals.average_cost) || 0;
   const monthly = numberOrNull(credits.monthly_remaining);
   const extra = (numberOrNull(credits.purchased) || 0) + (numberOrNull(credits.free) || 0);
+  const upstreamOnly = totals.source === "upstream";
 
   $("metric-cost").textContent = formatMoney(cost);
-  $("metric-cost-sub").textContent = `平均 ${formatMoney(average)} / 次`;
+  $("metric-cost-sub").textContent = upstreamOnly
+    ? `平均 ${formatMoney(average)} / 次 · 本计费周期`
+    : `平均 ${formatMoney(average)} / 次`;
   $("metric-requests").textContent = formatInteger(requests);
   const detail = numberOrNull(totals.detail_records) || 0;
-  $("metric-requests-sub").textContent =
-    totals.source === "aggregate"
+  $("metric-requests-sub").textContent = upstreamOnly
+    ? `本计费周期上游汇总 · 成功 ${formatInteger(totals.completed || 0)}`
+    : totals.source === "aggregate"
       ? `本地明细样本 ${formatInteger(detail)} 条`
       : `完成 ${formatInteger(totals.completed || 0)} / 失败 ${formatInteger(
           totals.failed || 0

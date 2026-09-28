@@ -211,6 +211,12 @@ ranges fill in as the app runs.
 The same endpoint returns no session identifier, so per-session cost is not
 available and is intentionally omitted rather than guessed.
 
+Per-request records and cache buckets come from the `/internal/*` endpoints,
+which only answer for a signed-in browser session. When that session is missing
+the overview falls back to the billing-period aggregate that the API key can
+still read (`/alpha/usage/summary`) and labels those cards "本计费周期上游汇总"
+so period totals are never mistaken for the selected range.
+
 ### Cache metrics
 
 Cache tokens come from `/internal/usage/charts`, which accepts an explicit
