@@ -185,6 +185,21 @@ Currency conversion applies to real cost fields only (`cost_total`,
 figures such as `monthly_remaining` or window usage are Command Code credits,
 not dollars, and are never converted.
 
+### Proxy support
+
+Upstream requests follow the `*_proxy` environment variables and the Windows
+system proxy. The opener is rebuilt on every request, so a proxy client such as
+Clash or mihomo may start, stop, or change ports while GOAT Gauge keeps
+running; the dashboard picks the change up without a restart. When a proxy is
+configured but unreachable, the request is retried once over a direct
+connection, and loopback traffic to the DevTools port always bypasses the
+proxy.
+
+This matters on machines where DNS resolves upstream hosts to a proxy-only
+fake IP range such as `198.18.0.0/15`: direct connections there time out, and a
+dashboard that cached the "no proxy" decision at start-up would freeze until it
+was restarted.
+
 ### Upstream limits
 
 Command Code's usage endpoint only exposes the newest bounded window

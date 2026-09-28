@@ -20,6 +20,15 @@ def _log_path() -> Path:
     return data_dir() / "chrome-mode.log"
 
 
+def _local_opener() -> urllib.request.OpenerDirector:
+    """Opener for the loopback DevTools endpoint.
+
+    Traffic to 127.0.0.1 must never be sent to a proxy, so this bypasses the
+    system proxy explicitly instead of relying on bypass rules being present.
+    """
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def log(message: str) -> None:
     try:
         path = _log_path()
@@ -106,7 +115,7 @@ def open_chrome(url: str) -> subprocess.Popen[bytes]:
 
 def _cdp_alive() -> bool:
     try:
-        with urllib.request.urlopen(
+        with _local_opener().open(
             f"http://127.0.0.1:{CDP_PORT}/json/version",
             timeout=1.5,
         ) as response:
@@ -117,7 +126,7 @@ def _cdp_alive() -> bool:
 
 def _page_ws_url() -> str | None:
     try:
-        with urllib.request.urlopen(
+        with _local_opener().open(
             f"http://127.0.0.1:{CDP_PORT}/json/list",
             timeout=2,
         ) as response:

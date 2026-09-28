@@ -239,6 +239,55 @@ def _normalize_subscription(raw: Any) -> dict[str, Any]:
     return source
 
 
+def _system_proxies() -> dict[str, str]:
+    """Return the proxy configuration that is in effect right now.
+
+    ``urllib.request.getproxies()`` merges the ``*_proxy`` environment
+    variables with the Windows registry, so a local proxy client such as
+    Clash or mihomo is picked up even when the process was started before it.
+    """
+    try:
+        proxies = urllib.request.getproxies()
+    except OSError:
+        return {}
+    return {key: value for key, value in proxies.items() if value}
+
+
+def _route_attempts() -> list[dict[str, str]]:
+    """Ordered proxy routes to try for one request."""
+    proxies = _system_proxies()
+    attempts = [proxies]
+    if proxies:
+        # A proxy can be enabled while its listener is down, so keep a direct
+        # fallback instead of freezing the dashboard on a stale setting.
+        attempts.append({})
+    return attempts
+
+
+def _read_response(request: urllib.request.Request, timeout: float) -> bytes:
+    """Open ``request`` with an opener built for the current proxy settings.
+
+    ``urllib.request.urlopen`` caches its default opener on first use, which
+    freezes proxy settings for the life of the process. A proxy client that
+    started after GOAT Gauge (or that changed port) would then be ignored
+    forever, so every call rebuilds the opener and retries on the other route
+    when the network layer fails.
+    """
+    last_error: Exception | None = None
+    for proxies in _route_attempts():
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+        try:
+            with opener.open(request, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise urllib.error.URLError("无法建立网络连接")
+
+
 def _request_json(
     url: str,
     *,
@@ -262,8 +311,7 @@ def _request_json(
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            payload = response.read().decode("utf-8", errors="replace")
+        payload = _read_response(request, timeout).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         message = {
             401: "API Key 无效或已过期。",
